@@ -301,7 +301,7 @@ h1 span {
   .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 }
 
-/* Settings button */
+/* Settings / refresh buttons */
 .settings-btn {
   background: none;
   border: 1px solid var(--border);
@@ -314,17 +314,24 @@ h1 span {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: auto;
 }
+#refreshBtn { margin-left: auto; }
+#settingsBtn { margin-left: 0.4rem; }
 .settings-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+.settings-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .settings-btn svg {
   width: 18px;
   height: 18px;
   fill: currentColor;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
+.settings-btn.spinning svg { animation: spin 0.8s linear infinite; }
 
 /* Modal overlay */
 .modal-overlay {
@@ -496,6 +503,9 @@ h1 span {
     <input type="text" id="search" placeholder="Search videos..." autocomplete="off" spellcheck="false" autofocus>
   </div>
   <div id="count"></div>
+  <button class="settings-btn" id="refreshBtn" title="Refresh all feeds">
+    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+  </button>
   <button class="settings-btn" id="settingsBtn" title="Settings">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
   </button>
@@ -828,6 +838,25 @@ document.getElementById('fetchBtn').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Fetch';
+  }
+});
+
+// --- Quick refresh button ---
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+
+  try {
+    const res = await fetch('/api/fetch', { method: 'POST' });
+    if (res.ok) {
+      const videos = await fetchVideos(search.value.trim());
+      render(videos);
+      loadChannels();
+    }
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
   }
 });
 

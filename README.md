@@ -6,7 +6,7 @@ Keep track of YouTube channels without suffering YouTube's subscription page.
 
 ## Why
 
-YouTube's subscription page is a single unsorted list. If you follow a mix of tech channels, music labels, whatever, it turns into noise fast.
+YouTube's subscription page is a single unsorted list. If you follow a mix of tech channels, music labels, whatever it gets very noisy..
 
 So this little app pulls YouTube channels via their public RSS feeds and gives you a CLI and a web UI to browse recent uploads. You organise channels into categories and filter by them.
 

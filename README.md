@@ -1,14 +1,14 @@
 # yt-rss
 
-Keep track of YouTube channels without actually subscribing to them.
+Keep track of YouTube channels without suffering YouTube's subscription page.
 
 ![Screenshot](screenshot.png)
 
 ## Why
 
-YouTube's subscription page is a single unsorted list. If you follow a mix of tech channels, music labels, and indie artists, it turns into noise fast. And if you only care about one musician on a record label's channel, tough - you're getting every upload from every artist on the roster.
+YouTube's subscription page is a single unsorted list. If you follow a mix of tech channels, music labels, whatever, it turns into noise fast.
 
-I got tired of that. yt-rss pulls YouTube channels via their public RSS feeds and gives you a CLI and a little web UI to browse recent uploads. You organise channels into categories and filter by them. No YouTube account, no algorithm, no notifications.
+So this little app pulls YouTube channels via their public RSS feeds and gives you a CLI and a web UI to browse recent uploads. You organise channels into categories and filter by them.
 
 It's all stored in a local SQLite database. Compiles to a single binary, no external dependencies.
 
@@ -47,6 +47,7 @@ Pass any YouTube channel URL - handles, `/channel/` URLs, legacy `/user/` URLs, 
 ```bash
 yt-rss add https://www.youtube.com/@somechannel
 yt-rss add https://www.youtube.com/@somechannel --category music
+yt-rss list
 ```
 
 Wrong category? Just edit it:

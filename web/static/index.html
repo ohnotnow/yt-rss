@@ -534,7 +534,10 @@ h1 span {
       </table>
     </div>
     <div class="tab-content" id="tab-fetch">
-      <button class="btn" id="fetchAllBtn">Fetch all channels</button>
+      <div class="settings-form">
+        <select id="fetchChannelSelect"><option value="">All channels</option></select>
+        <button class="btn" id="fetchBtn">Fetch</button>
+      </div>
       <div class="fetch-status" id="fetchStatus"></div>
     </div>
   </div>
@@ -646,6 +649,7 @@ function openSettings() {
   modalOverlay.classList.add('open');
   loadChannels();
   loadSettingsCategories();
+  loadFetchChannels();
 }
 
 function closeSettings() {
@@ -783,15 +787,29 @@ async function deleteCategory(id) {
 }
 
 // Fetch tab
-document.getElementById('fetchAllBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('fetchAllBtn');
+async function loadFetchChannels() {
+  const res = await fetch('/api/channels');
+  if (!res.ok) return;
+  const channels = await res.json();
+  const sel = document.getElementById('fetchChannelSelect');
+  sel.innerHTML = '<option value="">All channels</option>' +
+    (channels || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+
+document.getElementById('fetchBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('fetchBtn');
   const status = document.getElementById('fetchStatus');
+  const sel = document.getElementById('fetchChannelSelect');
+  const channelId = sel.value;
+
   btn.disabled = true;
   btn.textContent = 'Fetching...';
-  status.innerHTML = 'Fetching all channels, please wait...';
+  const label = channelId ? sel.options[sel.selectedIndex].text : 'all channels';
+  status.innerHTML = 'Fetching ' + escapeHtml(label) + ', please wait...';
 
   try {
-    const res = await fetch('/api/fetch', { method: 'POST' });
+    const url = channelId ? '/api/fetch?id=' + channelId : '/api/fetch';
+    const res = await fetch(url, { method: 'POST' });
     if (!res.ok) {
       status.innerHTML = '<span class="error">Error: ' + escapeHtml(await res.text()) + '</span>';
       return;
@@ -809,7 +827,7 @@ document.getElementById('fetchAllBtn').addEventListener('click', async () => {
     loadChannels();
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Fetch all channels';
+    btn.textContent = 'Fetch';
   }
 });
 

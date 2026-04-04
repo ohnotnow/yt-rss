@@ -2,6 +2,8 @@
 
 Keep track of YouTube channels without actually subscribing to them.
 
+![Screenshot](screenshot.png)
+
 ## Why
 
 YouTube's subscription page is a single unsorted list. If you follow a mix of tech channels, music labels, and indie artists, it turns into noise fast. And if you only care about one musician on a record label's channel, tough - you're getting every upload from every artist on the roster.

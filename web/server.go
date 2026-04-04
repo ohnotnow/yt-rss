@@ -22,17 +22,16 @@ func NewServer(database *db.DB) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/api/videos" {
+	switch r.URL.Path {
+	case "/api/videos":
 		s.handleVideos(w, r)
-		return
-	}
-
-	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+	case "/api/categories":
+		s.handleCategories(w, r)
+	case "/", "/index.html":
 		s.serveIndex(w, r)
-		return
+	default:
+		http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
 	}
-
-	http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
 }
 
 func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
@@ -59,12 +58,28 @@ func (s *Server) handleVideos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query().Get("q")
+	categoryParam := r.URL.Query().Get("category")
+
+	var categoryID int64
+	var hasCategory bool
+	if categoryParam != "" {
+		if parsed, err := strconv.ParseInt(categoryParam, 10, 64); err == nil {
+			categoryID = parsed
+			hasCategory = true
+		}
+	}
 
 	var videos []models.Video
 	var err error
-	if query != "" {
+
+	switch {
+	case query != "" && hasCategory:
+		videos, err = s.db.SearchVideosByCategory(query, categoryID, limit)
+	case query != "":
 		videos, err = s.db.SearchVideos(query, limit)
-	} else {
+	case hasCategory:
+		videos, err = s.db.ListVideosByCategory(categoryID, limit)
+	default:
 		videos, err = s.db.ListAllVideos(limit)
 	}
 
@@ -75,4 +90,20 @@ func (s *Server) handleVideos(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(videos)
+}
+
+func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	categories, err := s.db.ListCategories()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(categories)
 }

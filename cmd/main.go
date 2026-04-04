@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -40,12 +41,16 @@ func main() {
 		cmdAdd()
 	case "remove", "rm":
 		cmdRemove()
+	case "edit":
+		cmdEdit()
 	case "list", "ls":
 		cmdList()
 	case "fetch":
 		cmdFetch()
 	case "videos", "vids":
 		cmdVideos()
+	case "category", "cat":
+		cmdCategory()
 	case "serve":
 		cmdServe()
 	case "help", "--help", "-h":
@@ -64,22 +69,44 @@ Usage:
   yt-rss <command> [arguments]
 
 Commands:
-  add <url>          Add a YouTube channel (accepts any YouTube channel URL)
-  remove <id>        Remove a channel by ID
-  list               List all tracked channels
-  fetch [id]         Fetch RSS feeds (all channels, or specific channel by ID)
-  videos [id] [n]    Show recent videos (all channels, or specific channel, limit n)
-  serve [port]       Start the web UI (default port 8080)
-  help               Show this help message`)
+  add <url> [--category <name>]   Add a YouTube channel
+  remove <id>                     Remove a channel by ID
+  edit <id> --category <name>     Edit a channel (set or clear category)
+  list                            List all tracked channels
+  fetch [id]                      Fetch RSS feeds (all or specific channel)
+  videos [id] [n]                 Show recent videos (limit n, default 20)
+  category add <name>             Add a category
+  category remove <name>          Remove a category
+  category list                   List all categories
+  serve [port]                    Start the web UI (default port 8080)
+  help                            Show this help message`)
+}
+
+// parseFlag finds --flag value in os.Args and returns the value, removing both from remaining args.
+func parseFlag(flag string) (string, []string) {
+	var remaining []string
+	var value string
+	args := os.Args[2:] // skip binary + command
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--"+flag && i+1 < len(args) {
+			value = args[i+1]
+			i++ // skip next
+		} else {
+			remaining = append(remaining, args[i])
+		}
+	}
+	return value, remaining
 }
 
 func cmdAdd() {
-	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: yt-rss add <channel-url>")
+	categoryName, remaining := parseFlag("category")
+
+	if len(remaining) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: yt-rss add <channel-url> [--category <name>]")
 		os.Exit(1)
 	}
 
-	rawURL := os.Args[2]
+	rawURL := remaining[0]
 	channelID, name, err := youtube.ParseChannelURL(rawURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -103,12 +130,89 @@ func cmdAdd() {
 		name = feed.ChannelTitle
 	}
 
-	if err := database.AddChannel(channelID, name, rawURL); err != nil {
+	var categoryID *int64
+	if categoryName != "" {
+		cat, err := database.GetCategoryByName(categoryName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: category %q not found. Use 'yt-rss category add %s' first.\n", categoryName, categoryName)
+			os.Exit(1)
+		}
+		categoryID = &cat.ID
+	}
+
+	if err := database.AddChannel(channelID, name, rawURL, categoryID); err != nil {
 		fmt.Fprintf(os.Stderr, "Error adding channel: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Added channel: %s (%s)\n", name, channelID)
+	msg := fmt.Sprintf("Added channel: %s (%s)", name, channelID)
+	if categoryName != "" {
+		msg += fmt.Sprintf(" [%s]", categoryName)
+	}
+	fmt.Println(msg)
+}
+
+func cmdEdit() {
+	categoryName, remaining := parseFlag("category")
+
+	if len(remaining) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: yt-rss edit <id> --category <name>")
+		fmt.Fprintln(os.Stderr, "       yt-rss edit <id> --category \"\"    (clear category)")
+		os.Exit(1)
+	}
+
+	id, err := strconv.ParseInt(remaining[0], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: invalid channel ID: %s\n", remaining[0])
+		os.Exit(1)
+	}
+
+	database, err := openDB()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	channel, err := database.GetChannel(id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: channel not found: %d\n", id)
+		os.Exit(1)
+	}
+
+	// Handle --category flag (present even if empty string to clear)
+	flagFound := false
+	for _, arg := range os.Args[2:] {
+		if arg == "--category" {
+			flagFound = true
+			break
+		}
+	}
+	if !flagFound {
+		fmt.Fprintln(os.Stderr, "Usage: yt-rss edit <id> --category <name>")
+		os.Exit(1)
+	}
+
+	var categoryID *int64
+	if categoryName != "" {
+		cat, err := database.GetCategoryByName(categoryName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: category %q not found. Use 'yt-rss category add %s' first.\n", categoryName, categoryName)
+			os.Exit(1)
+		}
+		categoryID = &cat.ID
+	}
+
+	if err := database.UpdateChannelCategory(id, categoryID); err != nil {
+		fmt.Fprintf(os.Stderr, "Error updating channel: %v\n", err)
+		os.Exit(1)
+	}
+
+	if categoryName != "" {
+		fmt.Printf("Updated %s: category set to %q\n", channel.Name, categoryName)
+	} else {
+		fmt.Printf("Updated %s: category cleared\n", channel.Name)
+	}
 }
 
 func cmdRemove() {
@@ -164,15 +268,111 @@ func cmdList() {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tCHANNEL\tCHANNEL ID\tURL\tLAST FETCHED\t")
+	fmt.Fprintln(w, "ID\tCHANNEL\tCATEGORY\tCHANNEL ID\tLAST FETCHED\t")
 	for _, c := range channels {
 		lastFetched := "never"
 		if c.LastFetched != nil {
 			lastFetched = c.LastFetched.Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t\n", c.ID, c.Name, c.ChannelID, c.URL, lastFetched)
+		category := "-"
+		if c.CategoryName != "" {
+			category = c.CategoryName
+		}
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t\n", c.ID, c.Name, category, c.ChannelID, lastFetched)
 	}
 	w.Flush()
+}
+
+func cmdCategory() {
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, "Usage: yt-rss category <add|remove|list> [name]")
+		os.Exit(1)
+	}
+
+	sub := os.Args[2]
+
+	switch sub {
+	case "add":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "Usage: yt-rss category add <name>")
+			os.Exit(1)
+		}
+		name := strings.Join(os.Args[3:], " ")
+
+		database, err := openDB()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
+		if _, err := database.AddCategory(name); err != nil {
+			if strings.Contains(err.Error(), "UNIQUE") {
+				fmt.Fprintf(os.Stderr, "Error: category %q already exists\n", name)
+			} else {
+				fmt.Fprintf(os.Stderr, "Error adding category: %v\n", err)
+			}
+			os.Exit(1)
+		}
+		fmt.Printf("Added category: %s\n", name)
+
+	case "remove", "rm":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "Usage: yt-rss category remove <name>")
+			os.Exit(1)
+		}
+		name := strings.Join(os.Args[3:], " ")
+
+		database, err := openDB()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
+		cat, err := database.GetCategoryByName(name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: category %q not found\n", name)
+			os.Exit(1)
+		}
+
+		if err := database.RemoveCategory(cat.ID); err != nil {
+			fmt.Fprintf(os.Stderr, "Error removing category: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Removed category: %s (channels in this category are now uncategorised)\n", name)
+
+	case "list", "ls":
+		database, err := openDB()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
+		categories, err := database.ListCategories()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error listing categories: %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(categories) == 0 {
+			fmt.Println("No categories yet. Use 'yt-rss category add <name>' to create one.")
+			return
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "ID\tNAME\t")
+		for _, c := range categories {
+			fmt.Fprintf(w, "%d\t%s\t\n", c.ID, c.Name)
+		}
+		w.Flush()
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown category subcommand: %s\n", sub)
+		fmt.Fprintln(os.Stderr, "Usage: yt-rss category <add|remove|list> [name]")
+		os.Exit(1)
+	}
 }
 
 func cmdFetch() {

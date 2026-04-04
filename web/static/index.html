@@ -138,6 +138,42 @@ h1 span {
   min-height: 1em;
 }
 
+.categories {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0 2rem 0.5rem;
+}
+
+.cat-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+
+.cat-pill:hover {
+  border-color: var(--accent-dim);
+  color: var(--text);
+}
+
+.cat-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+@media (max-width: 640px) {
+  .categories { padding: 0 1rem 0.5rem; }
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -276,21 +312,54 @@ h1 span {
   <div id="count"></div>
 </header>
 
+<div class="categories" id="categories"></div>
 <main class="grid" id="grid"></main>
 
 <script>
 const grid = document.getElementById('grid');
 const search = document.getElementById('search');
 const count = document.getElementById('count');
+const categoriesEl = document.getElementById('categories');
 
 let debounce;
+let activeCategory = null;
 
 async function fetchVideos(q = '') {
   const params = new URLSearchParams({ limit: 100 });
   if (q) params.set('q', q);
+  if (activeCategory) params.set('category', activeCategory);
   const res = await fetch(`/api/videos?${params}`);
   if (!res.ok) return [];
   return res.json();
+}
+
+async function fetchCategories() {
+  const res = await fetch('/api/categories');
+  if (!res.ok) return [];
+  return res.json();
+}
+
+function renderCategories(categories) {
+  if (!categories || !categories.length) {
+    categoriesEl.innerHTML = '';
+    return;
+  }
+
+  const allPill = `<button class="cat-pill${!activeCategory ? ' active' : ''}" data-id="">All</button>`;
+  const pills = categories.map(c =>
+    `<button class="cat-pill${activeCategory == c.id ? ' active' : ''}" data-id="${c.id}">${escapeHtml(c.name)}</button>`
+  ).join('');
+
+  categoriesEl.innerHTML = allPill + pills;
+
+  categoriesEl.querySelectorAll('.cat-pill').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      activeCategory = btn.dataset.id || null;
+      renderCategories(categories);
+      const videos = await fetchVideos(search.value.trim());
+      render(videos);
+    });
+  });
 }
 
 function formatDate(iso) {
@@ -337,7 +406,8 @@ search.addEventListener('input', () => {
 });
 
 (async () => {
-  const videos = await fetchVideos();
+  const [videos, categories] = await Promise.all([fetchVideos(), fetchCategories()]);
+  renderCategories(categories);
   render(videos);
 })();
 </script>

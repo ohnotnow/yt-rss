@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/user/yt-rss/db"
 	"github.com/user/yt-rss/models"
+	"github.com/user/yt-rss/youtube"
 )
 
 //go:embed static/*
@@ -22,12 +24,24 @@ func NewServer(database *db.DB) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.URL.Path {
-	case "/api/videos":
+	switch {
+	case r.URL.Path == "/api/videos" && r.Method == http.MethodGet:
 		s.handleVideos(w, r)
-	case "/api/categories":
+	case r.URL.Path == "/api/categories" && r.Method == http.MethodGet:
 		s.handleCategories(w, r)
-	case "/", "/index.html":
+	case r.URL.Path == "/api/categories" && r.Method == http.MethodPost:
+		s.handleAddCategory(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/categories/") && r.Method == http.MethodDelete:
+		s.handleDeleteCategory(w, r)
+	case r.URL.Path == "/api/channels" && r.Method == http.MethodGet:
+		s.handleListChannels(w, r)
+	case r.URL.Path == "/api/channels" && r.Method == http.MethodPost:
+		s.handleAddChannel(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/channels/") && r.Method == http.MethodDelete:
+		s.handleDeleteChannel(w, r)
+	case r.URL.Path == "/api/fetch" && r.Method == http.MethodPost:
+		s.handleFetch(w, r)
+	case r.URL.Path == "/" || r.URL.Path == "/index.html":
 		s.serveIndex(w, r)
 	default:
 		http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
@@ -45,11 +59,6 @@ func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleVideos(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	limit := 100
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
@@ -88,22 +97,147 @@ func (s *Server) handleVideos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(videos)
+	jsonResponse(w, videos)
 }
 
 func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	categories, err := s.db.ListCategories()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	jsonResponse(w, categories)
+}
 
+func (s *Server) handleAddCategory(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	id, err := s.db.AddCategory(strings.TrimSpace(req.Name))
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			http.Error(w, "category already exists", http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse(w, map[string]any{"id": id, "name": req.Name})
+}
+
+func (s *Server) handleDeleteCategory(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/categories/")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid category ID", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.RemoveCategory(id); err != nil {
+		http.Error(w, "category not found", http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
+	channels, err := s.db.ListChannels()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, channels)
+}
+
+func (s *Server) handleAddChannel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL        string `json:"url"`
+		CategoryID *int64 `json:"category_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.URL) == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	channelID, name, err := youtube.ParseChannelURL(strings.TrimSpace(req.URL))
+	if err != nil {
+		http.Error(w, "could not resolve channel: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if name == "" {
+		feedURL := youtube.RSSFeedURL(channelID)
+		feed, err := youtube.FetchFeed(feedURL)
+		if err == nil {
+			name = feed.ChannelTitle
+		}
+		if name == "" {
+			name = channelID
+		}
+	}
+
+	if err := s.db.AddChannel(channelID, name, req.URL, req.CategoryID); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			http.Error(w, "channel already exists", http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ch, _ := s.db.GetChannelByChannelID(channelID)
+	jsonResponse(w, ch)
+}
+
+func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/channels/")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid channel ID", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.RemoveChannel(id); err != nil {
+		http.Error(w, "channel not found", http.StatusNotFound)
+		return
+	}
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
+	var channels []models.Channel
+	var err error
+
+	if idStr := r.URL.Query().Get("id"); idStr != "" {
+		id, parseErr := strconv.ParseInt(idStr, 10, 64)
+		if parseErr != nil {
+			http.Error(w, "invalid channel ID", http.StatusBadRequest)
+			return
+		}
+		ch, getErr := s.db.GetChannel(id)
+		if getErr != nil {
+			http.Error(w, "channel not found", http.StatusNotFound)
+			return
+		}
+		channels = []models.Channel{*ch}
+	} else {
+		channels, err = s.db.ListChannels()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	fetcher := youtube.NewFetcher(s.db.UpsertVideo, s.db.UpdateLastFetched)
+	results := fetcher.FetchChannels(channels)
+	jsonResponse(w, results)
+}
+
+func jsonResponse(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(categories)
+	json.NewEncoder(w).Encode(data)
 }

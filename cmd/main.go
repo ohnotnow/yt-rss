@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/user/yt-rss/db"
 	"github.com/user/yt-rss/models"
@@ -409,40 +408,17 @@ func cmdFetch() {
 		return
 	}
 
+	fetcher := youtube.NewFetcher(database.UpsertVideo, database.UpdateLastFetched)
+	results := fetcher.FetchChannels(channels)
+
 	totalNew := 0
-	for _, c := range channels {
-		feedURL := youtube.RSSFeedURL(c.ChannelID)
-		feed, err := youtube.FetchFeed(feedURL)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching %s: %v\n", c.Name, err)
+	for _, r := range results {
+		if r.Error != "" {
+			fmt.Fprintf(os.Stderr, "Error fetching %s: %s\n", r.ChannelName, r.Error)
 			continue
 		}
-
-		entries := youtube.ParseEntries(feed, c.ID)
-		newCount := 0
-		for _, e := range entries {
-			if err := database.UpsertVideo(&models.Video{
-				ChannelID:   e.ChannelID,
-				VideoID:     e.VideoID,
-				Title:       e.Title,
-				Description: e.Description,
-				Thumbnail:   e.Thumbnail,
-				URL:         e.URL,
-				PublishedAt: e.PublishedAt,
-				FetchedAt:   time.Now(),
-			}); err != nil {
-				fmt.Fprintf(os.Stderr, "  Error saving video: %v\n", err)
-				continue
-			}
-			newCount++
-		}
-
-		if err := database.UpdateLastFetched(c.ID, time.Now()); err != nil {
-			fmt.Fprintf(os.Stderr, "  Error updating last fetched: %v\n", err)
-		}
-
-		fmt.Printf("Fetched %s: %d videos\n", c.Name, newCount)
-		totalNew += newCount
+		fmt.Printf("Fetched %s: %d videos\n", r.ChannelName, r.VideoCount)
+		totalNew += r.VideoCount
 	}
 
 	fmt.Printf("\nTotal: %d videos saved\n", totalNew)
@@ -505,7 +481,7 @@ func cmdVideos() {
 	if channelName != "" {
 		fmt.Printf("Recent videos for %s:\n\n", channelName)
 	} else {
-		fmt.Println("Recent videos:\n")
+		fmt.Printf("Recent videos:\n\n")
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

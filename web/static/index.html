@@ -300,6 +300,192 @@ h1 span {
   header { padding: 1rem 1rem 1.5rem; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 }
+
+/* Settings button */
+.settings-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+}
+.settings-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.settings-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+/* Modal overlay */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 1rem;
+  overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.25rem;
+}
+.modal-close:hover { color: var(--text); }
+
+/* Tabs */
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.modal-tab {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.75rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.modal-tab:hover { color: var(--text); }
+.modal-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab-content { display: none; padding: 1.25rem; }
+.tab-content.active { display: block; }
+
+/* Forms and lists inside modal */
+.settings-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.settings-form input, .settings-form select {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  outline: none;
+}
+.settings-form input:focus, .settings-form select:focus {
+  border-color: var(--accent-dim);
+}
+.settings-form select { max-width: 160px; }
+
+.btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--accent); color: var(--bg); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:disabled:hover { background: transparent; color: var(--accent); }
+.btn-danger { border-color: #c0392b; color: #c0392b; }
+.btn-danger:hover { background: #c0392b; color: #fff; }
+.btn-sm { padding: 0.35rem 0.6rem; font-size: 0.65rem; }
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+}
+.settings-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 400;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.65rem;
+}
+.settings-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+.settings-table tr:last-child td { border-bottom: none; }
+
+.fetch-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  white-space: pre-line;
+}
+.fetch-status:empty { display: none; }
+.fetch-status .error { color: #c0392b; }
+.fetch-status .ok { color: #27ae60; }
 </style>
 </head>
 <body>
@@ -310,7 +496,49 @@ h1 span {
     <input type="text" id="search" placeholder="Search videos..." autocomplete="off" spellcheck="false" autofocus>
   </div>
   <div id="count"></div>
+  <button class="settings-btn" id="settingsBtn" title="Settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
+  </button>
 </header>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="channels">Channels</button>
+      <button class="modal-tab" data-tab="categories">Categories</button>
+      <button class="modal-tab" data-tab="fetch">Fetch</button>
+    </div>
+    <div class="tab-content active" id="tab-channels">
+      <div class="settings-form">
+        <input type="text" id="addChannelUrl" placeholder="YouTube channel URL (e.g. youtube.com/@name)">
+        <select id="addChannelCat"><option value="">No category</option></select>
+        <button class="btn" id="addChannelBtn">Add</button>
+      </div>
+      <table class="settings-table">
+        <thead><tr><th>Name</th><th>Category</th><th>Last fetched</th><th></th></tr></thead>
+        <tbody id="channelsList"></tbody>
+      </table>
+    </div>
+    <div class="tab-content" id="tab-categories">
+      <div class="settings-form">
+        <input type="text" id="addCatName" placeholder="New category name">
+        <button class="btn" id="addCatBtn">Add</button>
+      </div>
+      <table class="settings-table">
+        <thead><tr><th>Name</th><th></th></tr></thead>
+        <tbody id="catsList"></tbody>
+      </table>
+    </div>
+    <div class="tab-content" id="tab-fetch">
+      <button class="btn" id="fetchAllBtn">Fetch all channels</button>
+      <div class="fetch-status" id="fetchStatus"></div>
+    </div>
+  </div>
+</div>
 
 <div class="categories" id="categories"></div>
 <main class="grid" id="grid"></main>
@@ -405,6 +633,187 @@ search.addEventListener('input', () => {
   }, 250);
 });
 
+// --- Settings modal ---
+const modalOverlay = document.getElementById('modalOverlay');
+const settingsBtn = document.getElementById('settingsBtn');
+const modalClose = document.getElementById('modalClose');
+
+settingsBtn.addEventListener('click', () => { openSettings(); });
+modalClose.addEventListener('click', () => { closeSettings(); });
+modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeSettings(); });
+
+function openSettings() {
+  modalOverlay.classList.add('open');
+  loadChannels();
+  loadSettingsCategories();
+}
+
+function closeSettings() {
+  modalOverlay.classList.remove('open');
+}
+
+// Tabs
+document.querySelectorAll('.modal-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Channels tab
+async function loadChannels() {
+  const res = await fetch('/api/channels');
+  if (!res.ok) return;
+  const channels = await res.json();
+  const tbody = document.getElementById('channelsList');
+  if (!channels || !channels.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim)">No channels yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = channels.map(c => `
+    <tr>
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.category_name || '-')}</td>
+      <td>${c.last_fetched ? formatDate(c.last_fetched) : 'never'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteChannel(${c.id})">Remove</button></td>
+    </tr>
+  `).join('');
+
+  // Also populate category dropdown for add channel form
+  const catRes = await fetch('/api/categories');
+  if (!catRes.ok) return;
+  const cats = await catRes.json();
+  const sel = document.getElementById('addChannelCat');
+  sel.innerHTML = '<option value="">No category</option>' +
+    (cats || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+
+document.getElementById('addChannelBtn').addEventListener('click', async () => {
+  const urlInput = document.getElementById('addChannelUrl');
+  const catSelect = document.getElementById('addChannelCat');
+  const btn = document.getElementById('addChannelBtn');
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+  try {
+    const body = { url };
+    if (catSelect.value) body.category_id = parseInt(catSelect.value);
+    const res = await fetch('/api/channels', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      alert('Error: ' + text);
+      return;
+    }
+    urlInput.value = '';
+    loadChannels();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add';
+  }
+});
+
+async function deleteChannel(id) {
+  if (!confirm('Remove this channel and all its videos?')) return;
+  const res = await fetch('/api/channels/' + id, { method: 'DELETE' });
+  if (!res.ok) {
+    alert('Error removing channel');
+    return;
+  }
+  loadChannels();
+}
+
+// Categories tab
+async function loadSettingsCategories() {
+  const res = await fetch('/api/categories');
+  if (!res.ok) return;
+  const cats = await res.json();
+  const tbody = document.getElementById('catsList');
+  if (!cats || !cats.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="color:var(--text-dim)">No categories yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cats.map(c => `
+    <tr>
+      <td>${escapeHtml(c.name)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.id})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('addCatBtn').addEventListener('click', async () => {
+  const input = document.getElementById('addCatName');
+  const name = input.value.trim();
+  if (!name) return;
+
+  const res = await fetch('/api/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    alert('Error: ' + text);
+    return;
+  }
+  input.value = '';
+  loadSettingsCategories();
+  // Refresh the main page category pills too
+  const cats = await fetchCategories();
+  renderCategories(cats);
+});
+
+async function deleteCategory(id) {
+  if (!confirm('Remove this category? Channels will become uncategorised.')) return;
+  const res = await fetch('/api/categories/' + id, { method: 'DELETE' });
+  if (!res.ok) {
+    alert('Error removing category');
+    return;
+  }
+  loadSettingsCategories();
+  const cats = await fetchCategories();
+  renderCategories(cats);
+}
+
+// Fetch tab
+document.getElementById('fetchAllBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('fetchAllBtn');
+  const status = document.getElementById('fetchStatus');
+  btn.disabled = true;
+  btn.textContent = 'Fetching...';
+  status.innerHTML = 'Fetching all channels, please wait...';
+
+  try {
+    const res = await fetch('/api/fetch', { method: 'POST' });
+    if (!res.ok) {
+      status.innerHTML = '<span class="error">Error: ' + escapeHtml(await res.text()) + '</span>';
+      return;
+    }
+    const results = await res.json();
+    status.innerHTML = results.map(r => {
+      if (r.error) return `<span class="error">${escapeHtml(r.channel_name)}: ${escapeHtml(r.error)}</span>`;
+      return `<span class="ok">${escapeHtml(r.channel_name)}: ${r.video_count} videos</span>`;
+    }).join('\n');
+
+    // Refresh the main video grid
+    const videos = await fetchVideos(search.value.trim());
+    render(videos);
+    // Refresh channel list (last fetched times)
+    loadChannels();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fetch all channels';
+  }
+});
+
+// --- Init ---
 (async () => {
   const [videos, categories] = await Promise.all([fetchVideos(), fetchCategories()]);
   renderCategories(categories);

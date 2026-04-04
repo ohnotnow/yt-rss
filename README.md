@@ -81,6 +81,12 @@ yt-rss serve 3000     # custom port
 
 Search bar, category filters, grid of video cards that link straight to YouTube. The HTML is embedded in the binary so there's nothing else to deploy.
 
+There's a settings panel behind the cog icon (top-right) where you can manage everything without touching the CLI:
+
+- **Channels** — add new channels by URL, assign them to categories, remove ones you're bored of
+- **Categories** — create and delete categories
+- **Fetch** — pull the latest uploads for all channels or just a specific one from a dropdown
+
 ### Other commands
 
 ```bash

@@ -20,9 +20,9 @@
   --surface-hover: #1a1a1a;
   --border: #222;
   --text: #e8e4de;
-  --text-dim: #6b6560;
+  --text-dim: #9a9490;
   --accent: #d4a04a;
-  --accent-dim: #8a6a32;
+  --accent-dim: #c49440;
   --grain-opacity: 0.03;
 }
 
@@ -134,9 +134,9 @@ h1 span {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1px;
-  background: var(--border);
-  padding: 0;
+  gap: 6px;
+  background: var(--bg);
+  padding: 6px;
 }
 
 .card {
@@ -264,7 +264,7 @@ h1 span {
 <header>
   <h1>yt-rss <span>video archive</span></h1>
   <div class="search-wrap">
-    <input type="text" id="search" placeholder="Search videos..." autocomplete="off" spellcheck="false">
+    <input type="text" id="search" placeholder="Search videos..." autocomplete="off" spellcheck="false" autofocus>
   </div>
   <div id="count"></div>
 </header>

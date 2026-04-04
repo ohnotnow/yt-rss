@@ -13,10 +13,13 @@ type DB struct {
 }
 
 func New(path string) (*DB, error) {
-	conn, err := sql.Open("sqlite", path)
+	conn, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
+
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
 
 	db := &DB{conn: conn}
 	if err := db.migrate(); err != nil {
@@ -182,8 +185,29 @@ func (db *DB) ListAllVideos(limit int) ([]models.Video, error) {
 	var videos []models.Video
 	for rows.Next() {
 		var v models.Video
-		var channelName string
-		if err := rows.Scan(&v.ID, &v.ChannelID, &v.VideoID, &v.Title, &v.Description, &v.Thumbnail, &v.URL, &v.PublishedAt, &v.FetchedAt, &channelName); err != nil {
+		if err := rows.Scan(&v.ID, &v.ChannelID, &v.VideoID, &v.Title, &v.Description, &v.Thumbnail, &v.URL, &v.PublishedAt, &v.FetchedAt, &v.ChannelName); err != nil {
+			return nil, err
+		}
+		videos = append(videos, v)
+	}
+	return videos, rows.Err()
+}
+
+func (db *DB) SearchVideos(query string, limit int) ([]models.Video, error) {
+	pattern := "%" + query + "%"
+	rows, err := db.conn.Query(
+		"SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, c.name FROM videos v JOIN channels c ON v.channel_id = c.id WHERE v.title LIKE ? OR c.name LIKE ? OR v.description LIKE ? ORDER BY v.published_at DESC LIMIT ?",
+		pattern, pattern, pattern, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var videos []models.Video
+	for rows.Next() {
+		var v models.Video
+		if err := rows.Scan(&v.ID, &v.ChannelID, &v.VideoID, &v.Title, &v.Description, &v.Thumbnail, &v.URL, &v.PublishedAt, &v.FetchedAt, &v.ChannelName); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)

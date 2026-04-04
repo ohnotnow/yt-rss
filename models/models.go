@@ -21,4 +21,5 @@ type Video struct {
 	URL         string    `json:"url"`
 	PublishedAt time.Time `json:"published_at"`
 	FetchedAt   time.Time `json:"fetched_at"`
+	ChannelName string    `json:"channel_name"`
 }

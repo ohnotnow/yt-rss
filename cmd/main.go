@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/user/yt-rss/db"
 	"github.com/user/yt-rss/models"
+	"github.com/user/yt-rss/web"
 	"github.com/user/yt-rss/youtube"
 )
 
@@ -44,6 +46,8 @@ func main() {
 		cmdFetch()
 	case "videos", "vids":
 		cmdVideos()
+	case "serve":
+		cmdServe()
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -65,6 +69,7 @@ Commands:
   list               List all tracked channels
   fetch [id]         Fetch RSS feeds (all channels, or specific channel by ID)
   videos [id] [n]    Show recent videos (all channels, or specific channel, limit n)
+  serve [port]       Start the web UI (default port 8080)
   help               Show this help message`)
 }
 
@@ -313,4 +318,27 @@ func cmdVideos() {
 		)
 	}
 	w.Flush()
+}
+
+func cmdServe() {
+	port := "8080"
+	if len(os.Args) >= 3 {
+		port = os.Args[2]
+	}
+
+	database, err := openDB()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	srv := web.NewServer(database)
+
+	addr := fmt.Sprintf(":%s", port)
+	fmt.Printf("yt-rss web UI starting at http://localhost%s\n", addr)
+	if err := http.ListenAndServe(addr, srv); err != nil {
+		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		os.Exit(1)
+	}
 }

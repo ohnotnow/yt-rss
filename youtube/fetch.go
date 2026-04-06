@@ -1,7 +1,6 @@
 package youtube
 
 import (
-	"sync"
 	"time"
 
 	"github.com/user/yt-rss/models"
@@ -37,7 +36,6 @@ func (f *Fetcher) FetchChannel(ch models.Channel) FetchResult {
 	}
 
 	entries := ParseEntries(feed, ch.ID)
-	entries = filterShorts(entries)
 	count := 0
 	for _, e := range entries {
 		if err := f.upsertVideo(&models.Video{
@@ -69,29 +67,3 @@ func (f *Fetcher) FetchChannels(channels []models.Channel) []FetchResult {
 	return results
 }
 
-// filterShorts removes YouTube Shorts from a slice of entries.
-// Checks are done concurrently to avoid slowing down the fetch.
-func filterShorts(entries []VideoEntry) []VideoEntry {
-	if len(entries) == 0 {
-		return entries
-	}
-
-	isShort := make([]bool, len(entries))
-	var wg sync.WaitGroup
-	for i, e := range entries {
-		wg.Add(1)
-		go func(idx int, videoID string) {
-			defer wg.Done()
-			isShort[idx] = IsShort(videoID)
-		}(i, e.VideoID)
-	}
-	wg.Wait()
-
-	filtered := make([]VideoEntry, 0, len(entries))
-	for i, e := range entries {
-		if !isShort[i] {
-			filtered = append(filtered, e)
-		}
-	}
-	return filtered
-}

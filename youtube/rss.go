@@ -5,29 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
-// IsShort checks whether a video is a YouTube Short by probing the shorts URL.
-// YouTube returns 200 for actual Shorts and redirects to /watch for regular videos.
-func IsShort(videoID string) bool {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	req, err := http.NewRequest("HEAD", fmt.Sprintf("https://www.youtube.com/shorts/%s", videoID), nil)
-	if err != nil {
-		return false
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; yt-rss/1.0)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+// IsShortURL checks whether a video URL is a YouTube Short.
+func IsShortURL(url string) bool {
+	return strings.Contains(url, "/shorts/")
 }
 
 type Feed struct {
@@ -89,6 +73,9 @@ func FetchFeed(feedURL string) (*Feed, error) {
 func ParseEntries(feed *Feed, channelDBID int64) []VideoEntry {
 	entries := make([]VideoEntry, 0, len(feed.Entries))
 	for _, e := range feed.Entries {
+		if IsShortURL(e.Link.Href) {
+			continue
+		}
 		published, _ := time.Parse(time.RFC3339, e.Published)
 		thumbnail := e.Group.Thumbnail.URL
 		if thumbnail == "" {

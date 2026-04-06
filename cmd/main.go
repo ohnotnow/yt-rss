@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"text/tabwriter"
 
 	"github.com/user/yt-rss/db"
@@ -531,51 +530,15 @@ func cmdPurgeShorts() {
 	}
 	defer database.Close()
 
-	videoIDs, err := database.AllVideoIDs()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading videos: %v\n", err)
-		os.Exit(1)
-	}
-
-	if len(videoIDs) == 0 {
-		fmt.Println("No videos in database.")
-		return
-	}
-
-	fmt.Printf("Checking %d videos for Shorts...\n", len(videoIDs))
-
-	// Check all videos concurrently
-	type result struct {
-		videoID string
-		isShort bool
-	}
-	results := make([]result, len(videoIDs))
-	var wg sync.WaitGroup
-	for i, id := range videoIDs {
-		wg.Add(1)
-		go func(idx int, vid string) {
-			defer wg.Done()
-			results[idx] = result{videoID: vid, isShort: youtube.IsShort(vid)}
-		}(i, id)
-	}
-	wg.Wait()
-
-	var shortsIDs []string
-	for _, r := range results {
-		if r.isShort {
-			shortsIDs = append(shortsIDs, r.videoID)
-		}
-	}
-
-	if len(shortsIDs) == 0 {
-		fmt.Println("No Shorts found in database.")
-		return
-	}
-
-	deleted, err := database.DeleteVideosByIDs(shortsIDs)
+	deleted, err := database.DeleteShorts()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error deleting Shorts: %v\n", err)
 		os.Exit(1)
+	}
+
+	if deleted == 0 {
+		fmt.Println("No Shorts found in database.")
+		return
 	}
 
 	fmt.Printf("Removed %d Shorts from database.\n", deleted)

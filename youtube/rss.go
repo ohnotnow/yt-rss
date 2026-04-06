@@ -17,11 +17,15 @@ func IsShort(videoID string) bool {
 			return http.ErrUseLastResponse
 		},
 	}
-	resp, err := client.Get(fmt.Sprintf("https://www.youtube.com/shorts/%s", videoID))
+	req, err := http.NewRequest("HEAD", fmt.Sprintf("https://www.youtube.com/shorts/%s", videoID), nil)
 	if err != nil {
 		return false
 	}
-	io.Copy(io.Discard, resp.Body)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; yt-rss/1.0)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
 }

@@ -8,6 +8,24 @@ import (
 	"time"
 )
 
+// IsShort checks whether a video is a YouTube Short by probing the shorts URL.
+// YouTube returns 200 for actual Shorts and redirects to /watch for regular videos.
+func IsShort(videoID string) bool {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(fmt.Sprintf("https://www.youtube.com/shorts/%s", videoID))
+	if err != nil {
+		return false
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 type Feed struct {
 	XMLName      xml.Name `xml:"feed"`
 	ChannelID    string   `xml:"http://www.youtube.com/xml/schemas/2015 channelId"`

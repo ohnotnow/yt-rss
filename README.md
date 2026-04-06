@@ -65,6 +65,12 @@ yt-rss fetch       # all channels
 yt-rss fetch 3     # just channel 3
 ```
 
+YouTube Shorts are automatically skipped during fetch so they don't clutter your feed. If you've already fetched some Shorts before this was added, you can clean them out in one go:
+
+```bash
+yt-rss purge-shorts
+```
+
 Then browse them in the terminal:
 
 ```bash

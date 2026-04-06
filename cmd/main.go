@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"github.com/user/yt-rss/db"
@@ -52,6 +53,8 @@ func main() {
 		cmdCategory()
 	case "serve":
 		cmdServe()
+	case "purge-shorts":
+		cmdPurgeShorts()
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -78,6 +81,7 @@ Commands:
   category remove <name>          Remove a category
   category list                   List all categories
   serve [port]                    Start the web UI (default port 8080)
+  purge-shorts                    Remove any YouTube Shorts already in the database
   help                            Show this help message`)
 }
 
@@ -517,4 +521,62 @@ func cmdServe() {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func cmdPurgeShorts() {
+	database, err := openDB()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	videoIDs, err := database.AllVideoIDs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading videos: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(videoIDs) == 0 {
+		fmt.Println("No videos in database.")
+		return
+	}
+
+	fmt.Printf("Checking %d videos for Shorts...\n", len(videoIDs))
+
+	// Check all videos concurrently
+	type result struct {
+		videoID string
+		isShort bool
+	}
+	results := make([]result, len(videoIDs))
+	var wg sync.WaitGroup
+	for i, id := range videoIDs {
+		wg.Add(1)
+		go func(idx int, vid string) {
+			defer wg.Done()
+			results[idx] = result{videoID: vid, isShort: youtube.IsShort(vid)}
+		}(i, id)
+	}
+	wg.Wait()
+
+	var shortsIDs []string
+	for _, r := range results {
+		if r.isShort {
+			shortsIDs = append(shortsIDs, r.videoID)
+		}
+	}
+
+	if len(shortsIDs) == 0 {
+		fmt.Println("No Shorts found in database.")
+		return
+	}
+
+	deleted, err := database.DeleteVideosByIDs(shortsIDs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error deleting Shorts: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Removed %d Shorts from database.\n", deleted)
 }

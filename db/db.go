@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/user/yt-rss/models"
@@ -290,6 +291,44 @@ func (db *DB) SearchVideosByCategory(query string, categoryID int64, limit int) 
 		WHERE c.category_id = ? AND (v.title LIKE ? OR c.name LIKE ? OR v.description LIKE ?)
 		ORDER BY v.published_at DESC LIMIT ?
 	`, categoryID, pattern, pattern, pattern, limit)
+}
+
+// AllVideoIDs returns every video_id stored in the database.
+func (db *DB) AllVideoIDs() ([]string, error) {
+	rows, err := db.conn.Query("SELECT video_id FROM videos")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// DeleteVideosByIDs deletes videos matching the given video_ids.
+func (db *DB) DeleteVideosByIDs(videoIDs []string) (int64, error) {
+	if len(videoIDs) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(videoIDs))
+	args := make([]any, len(videoIDs))
+	for i, id := range videoIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := "DELETE FROM videos WHERE video_id IN (" + strings.Join(placeholders, ",") + ")"
+	result, err := db.conn.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 // --- Helpers ---

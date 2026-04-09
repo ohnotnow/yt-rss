@@ -73,6 +73,9 @@ func (db *DB) migrate() error {
 	// Add category_id column if upgrading from older schema
 	db.conn.Exec("ALTER TABLE channels ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL")
 
+	// Add watched_at column if upgrading from older schema
+	db.conn.Exec("ALTER TABLE videos ADD COLUMN watched_at DATETIME")
+
 	return nil
 }
 
@@ -249,7 +252,7 @@ func (db *DB) ListVideos(channelID int64, limit int) ([]models.Video, error) {
 
 func (db *DB) ListAllVideos(limit int) ([]models.Video, error) {
 	return db.queryVideos(`
-		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, c.name, COALESCE(cat.name, '')
+		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, v.watched_at, c.name, COALESCE(cat.name, '')
 		FROM videos v
 		JOIN channels c ON v.channel_id = c.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
@@ -259,7 +262,7 @@ func (db *DB) ListAllVideos(limit int) ([]models.Video, error) {
 
 func (db *DB) ListVideosByCategory(categoryID int64, limit int) ([]models.Video, error) {
 	return db.queryVideos(`
-		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, c.name, COALESCE(cat.name, '')
+		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, v.watched_at, c.name, COALESCE(cat.name, '')
 		FROM videos v
 		JOIN channels c ON v.channel_id = c.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
@@ -271,7 +274,7 @@ func (db *DB) ListVideosByCategory(categoryID int64, limit int) ([]models.Video,
 func (db *DB) SearchVideos(query string, limit int) ([]models.Video, error) {
 	pattern := "%" + query + "%"
 	return db.queryVideos(`
-		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, c.name, COALESCE(cat.name, '')
+		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, v.watched_at, c.name, COALESCE(cat.name, '')
 		FROM videos v
 		JOIN channels c ON v.channel_id = c.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
@@ -283,7 +286,7 @@ func (db *DB) SearchVideos(query string, limit int) ([]models.Video, error) {
 func (db *DB) SearchVideosByCategory(query string, categoryID int64, limit int) ([]models.Video, error) {
 	pattern := "%" + query + "%"
 	return db.queryVideos(`
-		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, c.name, COALESCE(cat.name, '')
+		SELECT v.id, v.channel_id, v.video_id, v.title, v.description, v.thumbnail, v.url, v.published_at, v.fetched_at, v.watched_at, c.name, COALESCE(cat.name, '')
 		FROM videos v
 		JOIN channels c ON v.channel_id = c.id
 		LEFT JOIN categories cat ON c.category_id = cat.id
@@ -295,6 +298,38 @@ func (db *DB) SearchVideosByCategory(query string, categoryID int64, limit int) 
 // DeleteShorts removes any YouTube Shorts from the database based on their URL.
 func (db *DB) DeleteShorts() (int64, error) {
 	result, err := db.conn.Exec("DELETE FROM videos WHERE url LIKE '%/shorts/%'")
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// --- Watched ---
+
+func (db *DB) MarkVideoWatched(id int64) error {
+	_, err := db.conn.Exec("UPDATE videos SET watched_at = ? WHERE id = ?", time.Now(), id)
+	return err
+}
+
+func (db *DB) MarkVideoUnwatched(id int64) error {
+	_, err := db.conn.Exec("UPDATE videos SET watched_at = NULL WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) MarkVideosWatchedBefore(id int64) (int64, error) {
+	// Get the video's channel and published_at so we can mark all older videos in the same channel
+	var channelID int64
+	var publishedAt time.Time
+	err := db.conn.QueryRow("SELECT channel_id, published_at FROM videos WHERE id = ?", id).Scan(&channelID, &publishedAt)
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now()
+	result, err := db.conn.Exec(
+		"UPDATE videos SET watched_at = ? WHERE channel_id = ? AND published_at <= ? AND watched_at IS NULL",
+		now, channelID, publishedAt,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -313,8 +348,12 @@ func (db *DB) queryVideos(query string, args ...any) ([]models.Video, error) {
 	var videos []models.Video
 	for rows.Next() {
 		var v models.Video
-		if err := rows.Scan(&v.ID, &v.ChannelID, &v.VideoID, &v.Title, &v.Description, &v.Thumbnail, &v.URL, &v.PublishedAt, &v.FetchedAt, &v.ChannelName, &v.CategoryName); err != nil {
+		var watchedAt sql.NullTime
+		if err := rows.Scan(&v.ID, &v.ChannelID, &v.VideoID, &v.Title, &v.Description, &v.Thumbnail, &v.URL, &v.PublishedAt, &v.FetchedAt, &watchedAt, &v.ChannelName, &v.CategoryName); err != nil {
 			return nil, err
+		}
+		if watchedAt.Valid {
+			v.WatchedAt = &watchedAt.Time
 		}
 		videos = append(videos, v)
 	}

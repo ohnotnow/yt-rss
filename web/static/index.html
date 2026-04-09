@@ -304,6 +304,80 @@ h1 span {
   letter-spacing: 0.05em;
 }
 
+/* Watched state */
+.card.watched {
+  opacity: 0.4;
+}
+.card.watched:hover {
+  opacity: 0.7;
+}
+.card.watched .watched-badge {
+  display: block;
+}
+.watched-badge {
+  display: none;
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  background: rgba(0,0,0,0.75);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 1px;
+  z-index: 3;
+}
+
+/* Hover overlay */
+.card-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 70%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 1.5rem 0.75rem 0.75rem;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 10;
+}
+.card:hover .card-overlay {
+  opacity: 1;
+}
+.card-overlay .overlay-btn {
+  width: 100%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+.card-overlay .overlay-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+.card-overlay .overlay-btn.btn-unwatch {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+}
+.card-overlay .overlay-btn.btn-unwatch:hover {
+  background: var(--text-dim);
+  color: var(--bg);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -641,11 +715,18 @@ function render(videos) {
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       separator = `<div class="date-card">${d.getDate()} ${months[d.getMonth()]}</div>`;
     }
+    const watched = v.watched_at ? ' watched' : '';
+    const overlayButtons = v.watched_at
+      ? `<button class="overlay-btn btn-unwatch" data-action="unwatch" data-id="${v.id}">Mark unwatched</button>`
+      : `<button class="overlay-btn" data-action="watch" data-id="${v.id}">Watched</button>
+         <button class="overlay-btn" data-action="watch-before" data-id="${v.id}">This &amp; older</button>`;
     return separator + `
-    <a class="card" href="${v.url}" target="_blank" rel="noopener" style="animation-delay: ${Math.min(i * 0.02, 0.5)}s">
+    <a class="card${watched}" href="${v.url}" target="_blank" rel="noopener" data-video-id="${v.id}" style="animation-delay: ${Math.min(i * 0.02, 0.5)}s">
       <div class="thumb">
         <img src="${v.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'">
+        <span class="watched-badge">watched</span>
       </div>
+      <div class="card-overlay">${overlayButtons}</div>
       <div class="meta">
         <div class="channel">${escapeHtml(v.channel_name || '')}</div>
         <div class="title">${escapeHtml(v.title)}</div>
@@ -660,6 +741,29 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// --- Watch overlay handlers ---
+grid.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.overlay-btn');
+  if (!btn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/videos/${id}/${action}`, { method: 'POST' });
+    if (res.ok) {
+      const videos = await fetchVideos(search.value.trim());
+      render(videos);
+    }
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 search.addEventListener('input', () => {
   clearTimeout(debounce);

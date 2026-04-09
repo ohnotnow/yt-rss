@@ -39,6 +39,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleAddChannel(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/channels/") && r.Method == http.MethodDelete:
 		s.handleDeleteChannel(w, r)
+	case strings.HasSuffix(r.URL.Path, "/watch") && strings.HasPrefix(r.URL.Path, "/api/videos/") && r.Method == http.MethodPost:
+		s.handleWatchVideo(w, r)
+	case strings.HasSuffix(r.URL.Path, "/unwatch") && strings.HasPrefix(r.URL.Path, "/api/videos/") && r.Method == http.MethodPost:
+		s.handleUnwatchVideo(w, r)
+	case strings.HasSuffix(r.URL.Path, "/watch-before") && strings.HasPrefix(r.URL.Path, "/api/videos/") && r.Method == http.MethodPost:
+		s.handleWatchBefore(w, r)
 	case r.URL.Path == "/api/fetch" && r.Method == http.MethodPost:
 		s.handleFetch(w, r)
 	case r.URL.Path == "/" || r.URL.Path == "/index.html":
@@ -235,6 +241,52 @@ func (s *Server) handleFetch(w http.ResponseWriter, r *http.Request) {
 	fetcher := youtube.NewFetcher(s.db.UpsertVideo, s.db.UpdateLastFetched)
 	results := fetcher.FetchChannels(channels)
 	jsonResponse(w, results)
+}
+
+func (s *Server) extractVideoID(path, suffix string) (int64, error) {
+	trimmed := strings.TrimPrefix(path, "/api/videos/")
+	trimmed = strings.TrimSuffix(trimmed, "/"+suffix)
+	return strconv.ParseInt(trimmed, 10, 64)
+}
+
+func (s *Server) handleWatchVideo(w http.ResponseWriter, r *http.Request) {
+	id, err := s.extractVideoID(r.URL.Path, "watch")
+	if err != nil {
+		http.Error(w, "invalid video ID", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.MarkVideoWatched(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleUnwatchVideo(w http.ResponseWriter, r *http.Request) {
+	id, err := s.extractVideoID(r.URL.Path, "unwatch")
+	if err != nil {
+		http.Error(w, "invalid video ID", http.StatusBadRequest)
+		return
+	}
+	if err := s.db.MarkVideoUnwatched(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleWatchBefore(w http.ResponseWriter, r *http.Request) {
+	id, err := s.extractVideoID(r.URL.Path, "watch-before")
+	if err != nil {
+		http.Error(w, "invalid video ID", http.StatusBadRequest)
+		return
+	}
+	count, err := s.db.MarkVideosWatchedBefore(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, map[string]any{"status": "ok", "count": count})
 }
 
 func jsonResponse(w http.ResponseWriter, data any) {

@@ -317,18 +317,17 @@ func (db *DB) MarkVideoUnwatched(id int64) error {
 }
 
 func (db *DB) MarkVideosWatchedBefore(id int64) (int64, error) {
-	// Get the video's channel and published_at so we can mark all older videos in the same channel
-	var channelID int64
+	// Get the video's published_at so we can mark all older videos across all channels
 	var publishedAt time.Time
-	err := db.conn.QueryRow("SELECT channel_id, published_at FROM videos WHERE id = ?", id).Scan(&channelID, &publishedAt)
+	err := db.conn.QueryRow("SELECT published_at FROM videos WHERE id = ?", id).Scan(&publishedAt)
 	if err != nil {
 		return 0, err
 	}
 
 	now := time.Now()
 	result, err := db.conn.Exec(
-		"UPDATE videos SET watched_at = ? WHERE channel_id = ? AND published_at <= ? AND watched_at IS NULL",
-		now, channelID, publishedAt,
+		"UPDATE videos SET watched_at = ? WHERE published_at <= ? AND watched_at IS NULL",
+		now, publishedAt,
 	)
 	if err != nil {
 		return 0, err

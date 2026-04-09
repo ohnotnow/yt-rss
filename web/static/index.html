@@ -305,11 +305,19 @@ h1 span {
 }
 
 /* Watched state */
-.card.watched {
-  opacity: 0.4;
+.card.watched .thumb img {
+  opacity: 0.55;
+  filter: grayscale(0.4);
 }
-.card.watched:hover {
-  opacity: 0.7;
+.card.watched .meta {
+  opacity: 0.6;
+}
+.card.watched:hover .thumb img {
+  opacity: 0.8;
+  filter: grayscale(0.1);
+}
+.card.watched:hover .meta {
+  opacity: 0.85;
 }
 .card.watched .watched-badge {
   display: block;
